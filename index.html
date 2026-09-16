@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nexus Flow - AI Lead Qualification</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #0f172a; color: #fff; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
+        .card { background: #1e293b; padding: 2rem; border-radius: 8px; width: 100%; max-width: 450px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+        h2 { margin-top: 0; color: #38bdf8; }
+        input, textarea, button { width: 100%; padding: 10px; margin: 8px 0 16px; border-radius: 4px; border: 1px solid #334155; background: #0f172a; color: #fff; box-sizing: border-box; }
+        button { background: #0284c7; font-weight: bold; cursor: pointer; border: none; }
+        button:hover { background: #0369a1; }
+        .result { background: #0f172a; padding: 12px; border-radius: 4px; display: none; margin-top: 10px; border-left: 4px solid #38bdf8; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2>Nexus Flow Lead Intake</h2>
+        <form id="leadForm">
+            <input type="text" id="name" placeholder="Full Name" required>
+            <input type="email" id="email" placeholder="Business Email" required>
+            <input type="text" id="company" placeholder="Company Name" required>
+            <input type="text" id="budget" placeholder="Estimated Budget (e.g. $5,000)" required>
+            <textarea id="message" rows="3" placeholder="Describe your automation needs..." required></textarea>
+            <button type="submit" id="submitBtn">Qualify Lead</button>
+        </form>
+        <div id="resultBox" class="result"></div>
+    </div>
+
+    <script>
+        document.getElementById('leadForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = document.getElementById('submitBtn');
+            const resultBox = document.getElementById('resultBox');
+            btn.innerText = "Analyzing Lead...";
+            btn.disabled = true;
+
+            const payload = {
+                name: document.getElementById('name').value,
+                email: document.getElementById('email').value,
+                company: document.getElementById('company').value,
+                budget: document.getElementById('budget').value,
+                message: document.getElementById('message').value
+            };
+
+            try {
+                const response = await fetch('/api/v1/qualify-lead', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await response.json();
+                
+                resultBox.style.display = 'block';
+                resultBox.innerHTML = `<strong>Status:</strong> Submitted Successfully!<br><pre style="white-space: pre-wrap; margin-top: 8px; font-size: 12px;">${JSON.stringify(data, null, 2)}</pre>`;
+            } catch (err) {
+                resultBox.style.display = 'block';
+                resultBox.innerHTML = `<span style="color: #ef4444;">Error connecting to server.</span>`;
+            } finally {
+                btn.innerText = "Qualify Lead";
+                btn.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>
