@@ -35,7 +35,7 @@ class LeadInput(BaseModel):
 def root():
     return {
         "status": "online",
-        "system": os.getenv("PROJECT_NAME"),
+        "system": os.getenv("PROJECT_NAME", "Nexus Flow Automation"),
         "ai_enabled": openai_client is not None
     }
 
@@ -81,6 +81,9 @@ def qualify_lead(lead: LeadInput):
         "success": True,
         "lead_summary": lead_data
     }
+
+# Vercel entry handler
+handler = app
 
 if __name__ == "__main__":
     import uvicorn
