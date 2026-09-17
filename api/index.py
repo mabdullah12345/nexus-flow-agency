@@ -2,6 +2,7 @@ import os
 import json
 import urllib.request
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
 from supabase import create_client, Client
@@ -45,7 +46,6 @@ class LeadInput(BaseModel):
 
 
 def send_email_notification(lead_data: dict, status: str):
-    """Send an automated confirmation email to the lead."""
     if not RESEND_API_KEY:
         print("RESEND_API_KEY missing. Skipping email dispatch.")
         return
@@ -68,7 +68,7 @@ def send_email_notification(lead_data: dict, status: str):
         body_html = f"""
         <h3>Hi {lead_data['client_name']},</h3>
         <p>Thank you for contacting <strong>Nexus Flow Automation</strong>.</p>
-        <p>We have received your details regarding <strong>{lead_data['property_type']}</strong> and added you to our nurture sequence. Our team will review your requirements and follow up via email shortly.</p>
+        <p>We have received your details regarding <strong>{lead_data['property_type']}</strong> and added you to our nurture sequence.</p>
         <br>
         <p>Best regards,<br><strong>Nexus Flow Team</strong></p>
         """
@@ -142,6 +142,147 @@ def root():
         "ai_enabled": openai_client is not None
     }
 
+@app.get("/admin", response_class=HTMLResponse)
+def admin_dashboard():
+    html_content = """
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Nexus Flow - Admin Lead Dashboard</title>
+      <style>
+        body {
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+          background-color: #0f172a;
+          color: #f8fafc;
+          margin: 0;
+          padding: 32px;
+        }
+        .header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 24px;
+          border-bottom: 1px solid #1e293b;
+          padding-bottom: 16px;
+        }
+        h1 {
+          font-size: 24px;
+          color: #38bdf8;
+          margin: 0;
+        }
+        .refresh-btn {
+          background: #0284c7;
+          color: #fff;
+          border: none;
+          padding: 10px 18px;
+          border-radius: 6px;
+          cursor: pointer;
+          font-weight: bold;
+        }
+        .refresh-btn:hover { background: #0369a1; }
+        table {
+          width: 100%;
+          border-collapse: collapse;
+          background: #1e293b;
+          border-radius: 8px;
+          overflow: hidden;
+          box-shadow: 0 4px 6px -1px rgba(0,0,0,0.3);
+        }
+        th, td {
+          padding: 14px 18px;
+          text-align: left;
+          border-bottom: 1px solid #334155;
+        }
+        th {
+          background-color: #1e293b;
+          color: #94a3b8;
+          font-size: 13px;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+        }
+        tr:hover { background-color: #334155; }
+        .status-badge {
+          display: inline-block;
+          padding: 4px 10px;
+          border-radius: 4px;
+          font-size: 12px;
+          font-weight: bold;
+        }
+        .qualified { background: #065f46; color: #34d399; }
+        .nurture { background: #854d0e; color: #fde047; }
+      </style>
+    </head>
+    <body>
+
+      <div class="header">
+        <h1>Nexus Flow — Lead Management Dashboard</h1>
+        <button class="refresh-btn" onclick="fetchLeads()">Refresh Leads</button>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Client Name</th>
+            <th>Company</th>
+            <th>Email</th>
+            <th>Phone</th>
+            <th>Budget</th>
+            <th>Project Type</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="leads-table-body">
+          <tr>
+            <td colspan="7" style="text-align:center;">Loading leads from database...</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <script>
+        async function fetchLeads() {
+          const tbody = document.getElementById("leads-table-body");
+          try {
+            const response = await fetch("/api/v1/leads");
+            const data = await response.json();
+            
+            if (data.success && data.leads) {
+              if (data.leads.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;">No leads captured yet.</td></tr>';
+                return;
+              }
+              
+              tbody.innerHTML = data.leads.map(lead => {
+                const isQualified = Number(lead.budget || 0) >= 5000;
+                const badgeClass = isQualified ? 'qualified' : 'nurture';
+                return `
+                  <tr>
+                    <td><strong>${lead.client_name || 'N/A'}</strong></td>
+                    <td>${lead.company_name || 'N/A'}</td>
+                    <td>${lead.email || 'N/A'}</td>
+                    <td>${lead.phone || 'N/A'}</td>
+                    <td>$${Number(lead.budget || 0).toLocaleString()}</td>
+                    <td>${lead.property_type || 'N/A'}</td>
+                    <td><span class="status-badge ${badgeClass}">${lead.status || 'N/A'}</span></td>
+                  </tr>
+                `;
+              }).join('');
+            } else {
+              tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#ef4444;">Error fetching leads.</td></tr>';
+            }
+          } catch (err) {
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#ef4444;">Failed to connect to backend API.</td></tr>';
+          }
+        }
+
+        fetchLeads();
+      </script>
+    </body>
+    </html>
+    """
+    return html_content
+
 @app.get("/api/v1/leads")
 def get_leads():
     if not supabase:
@@ -158,7 +299,6 @@ def qualify_lead(lead: LeadInput):
     status = "HIGH PRIORITY - QUALIFIED" if is_qualified else "STANDARD NURTURE"
     action = "Instant Calendar Invite Sent" if is_qualified else "Added to Email Sequence"
     
-    # Generate AI Personalized Message if OpenAI is connected
     ai_response_message = "Thank you for your inquiry. Our agent will contact you shortly."
     if openai_client:
         try:
@@ -186,17 +326,13 @@ def qualify_lead(lead: LeadInput):
         "ai_message": ai_response_message
     }
     
-    # Insert to Supabase Database
     if supabase:
         try:
             supabase.table("leads").insert(lead_data).execute()
         except Exception as e:
             print(f"DB Error: {e}")
 
-    # Trigger Slack Rich Alert
     send_slack_notification(lead_data, status, action)
-
-    # Trigger Automated Email Dispatch
     send_email_notification(lead_data, status)
 
     return {
@@ -204,7 +340,6 @@ def qualify_lead(lead: LeadInput):
         "lead_summary": lead_data
     }
 
-# Vercel entry handler
 handler = app
 
 if __name__ == "__main__":
