@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nexus Flow - Admin Lead Dashboard</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      background-color: #0f172a;
+      color: #f8fafc;
+      margin: 0;
+      padding: 24px;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+      border-bottom: 1px solid #1e293b;
+      padding-bottom: 16px;
+    }
+    h1 {
+      font-size: 24px;
+      color: #0284c7;
+      margin: 0;
+    }
+    .refresh-btn {
+      background: #0284c7;
+      color: #fff;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    .refresh-btn:hover { background: #0369a1; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #1e293b;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    th, td {
+      padding: 12px 16px;
+      text-align: left;
+      border-bottom: 1px solid #334155;
+    }
+    th {
+      background-color: #0f172a;
+      color: #94a3b8;
+      font-size: 14px;
+    }
+    tr:hover { background-color: #334155; }
+    .status-badge {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: bold;
+    }
+    .qualified { background: #065f46; color: #34d399; }
+    .nurture { background: #854d0e; color: #fde047; }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <h1>Nexus Flow - Lead Management Dashboard</h1>
+    <button class="refresh-btn" onclick="fetchLeads()">Refresh Leads</button>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Client Name</th>
+        <th>Company</th>
+        <th>Email</th>
+        <th>Phone</th>
+        <th>Budget</th>
+        <th>Type</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody id="leads-table-body">
+      <tr>
+        <td colspan="7" style="text-align:center;">Loading leads...</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <script>
+    async function fetchLeads() {
+      const tbody = document.getElementById("leads-table-body");
+      try {
+        const response = await fetch("/api/v1/leads");
+        const data = await response.json();
+        
+        if (data.success && data.leads) {
+          if (data.leads.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;">No leads found.</td></tr>';
+            return;
+          }
+          
+          tbody.innerHTML = data.leads.map(lead => {
+            const isQualified = lead.budget >= 5000;
+            const badgeClass = isQualified ? 'qualified' : 'nurture';
+            return `
+              <tr>
+                <td><strong>${lead.client_name || 'N/A'}</strong></td>
+                <td>${lead.company_name || 'N/A'}</td>
+                <td>${lead.email || 'N/A'}</td>
+                <td>${lead.phone || 'N/A'}</td>
+                <td>$${Number(lead.budget || 0).toLocaleString()}</td>
+                <td>${lead.property_type || 'N/A'}</td>
+                <td><span class="status-badge ${badgeClass}">${lead.status || 'N/A'}</span></td>
+              </tr>
+            `;
+          }).join('');
+        } else {
+          tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#ef4444;">Error loading leads.</td></tr>';
+        }
+      } catch (err) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#ef4444;">Failed to connect to backend.</td></tr>';
+      }
+    }
+
+    // Auto-fetch on page load
+    fetchLeads();
+  </script>
+</body>
+</html>

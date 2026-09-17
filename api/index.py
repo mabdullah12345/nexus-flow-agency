@@ -1,7 +1,7 @@
 import os
 import json
 import urllib.request
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from dotenv import load_dotenv
 from supabase import create_client, Client
@@ -141,6 +141,16 @@ def root():
         "system": os.getenv("PROJECT_NAME", "Nexus Flow Automation"),
         "ai_enabled": openai_client is not None
     }
+
+@app.get("/api/v1/leads")
+def get_leads():
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase not configured")
+    try:
+        response = supabase.table("leads").select("*").execute()
+        return {"success": True, "leads": response.data}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/v1/qualify-lead")
 def qualify_lead(lead: LeadInput):
