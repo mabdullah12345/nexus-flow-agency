@@ -5,10 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nexus Flow - AI Lead Qualification</title>
     <style>
-        body { font-family: Arial, sans-serif; background: #0f172a; color: #fff; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
+        body { font-family: Arial, sans-serif; background: #0f172a; color: #fff; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }
         .card { background: #1e293b; padding: 2rem; border-radius: 8px; width: 100%; max-width: 450px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
         h2 { margin-top: 0; color: #38bdf8; }
-        input, textarea, button { width: 100%; padding: 10px; margin: 8px 0 16px; border-radius: 4px; border: 1px solid #334155; background: #0f172a; color: #fff; box-sizing: border-box; }
+        input, textarea, select, button { width: 100%; padding: 10px; margin: 8px 0 16px; border-radius: 4px; border: 1px solid #334155; background: #0f172a; color: #fff; box-sizing: border-box; }
         button { background: #0284c7; font-weight: bold; cursor: pointer; border: none; }
         button:hover { background: #0369a1; }
         .result { background: #0f172a; padding: 12px; border-radius: 4px; display: none; margin-top: 10px; border-left: 4px solid #38bdf8; }
@@ -20,8 +20,11 @@
         <form id="leadForm">
             <input type="text" id="name" placeholder="Full Name" required>
             <input type="email" id="email" placeholder="Business Email" required>
+            <input type="tel" id="phone" placeholder="Phone Number (e.g. +1234567890)" required>
             <input type="text" id="company" placeholder="Company Name" required>
-            <input type="text" id="budget" placeholder="Estimated Budget (e.g. $5,000)" required>
+            <input type="number" id="budget" placeholder="Estimated Budget (e.g. 5000)" step="any" required>
+            <input type="text" id="property_type" placeholder="Property / Project Type (e.g. Commercial)" required>
+            <input type="text" id="location" placeholder="Location (e.g. New York)" required>
             <textarea id="message" rows="3" placeholder="Describe your automation needs..." required></textarea>
             <button type="submit" id="submitBtn">Qualify Lead</button>
         </form>
@@ -36,12 +39,16 @@
             btn.innerText = "Analyzing Lead...";
             btn.disabled = true;
 
-            // Updated keys to match FastAPI backend schema exactly:
+            const rawBudget = document.getElementById('budget').value.replace(/[^0-9.]/g, '');
+
             const payload = {
                 client_name: document.getElementById('name').value,
                 email: document.getElementById('email').value,
+                phone: document.getElementById('phone').value,
                 company_name: document.getElementById('company').value,
-                budget: document.getElementById('budget').value,
+                budget: parseFloat(rawBudget) || 0,
+                property_type: document.getElementById('property_type').value,
+                location: document.getElementById('location').value,
                 message: document.getElementById('message').value
             };
 
