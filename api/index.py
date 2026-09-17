@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 from supabase import create_client, Client
 from openai import OpenAI
+import resend
 
 load_dotenv()
 
@@ -18,6 +19,10 @@ app = FastAPI(
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
+
+if RESEND_API_KEY:
+    resend.api_key = RESEND_API_KEY
 
 supabase: Client = None
 if SUPABASE_URL and SUPABASE_KEY and "your-supabase" not in SUPABASE_URL:
@@ -37,6 +42,47 @@ class LeadInput(BaseModel):
     property_type: str
     location: str
     message: str | None = None
+
+
+def send_email_notification(lead_data: dict, status: str):
+    """Send an automated confirmation email to the lead."""
+    if not RESEND_API_KEY:
+        print("RESEND_API_KEY missing. Skipping email dispatch.")
+        return
+
+    is_qualified = lead_data.get("budget", 0) >= 5000.0
+    
+    if is_qualified:
+        subject = f"Priority Consultation Confirmed - {lead_data['company_name']}"
+        body_html = f"""
+        <h3>Hi {lead_data['client_name']},</h3>
+        <p>Thank you for reaching out to <strong>Nexus Flow Automation</strong>.</p>
+        <p>Your requirements for <strong>{lead_data['property_type']}</strong> match our High-Priority AI acceleration tier.</p>
+        <p><strong>Next Step:</strong> Please schedule a 15-minute discovery call using our priority link below:</p>
+        <p><a href="https://cal.com/nexus-flow/15min" style="background:#0284c7;color:#fff;padding:10px 18px;border-radius:4px;text-decoration:none;font-weight:bold;">Book Priority Call</a></p>
+        <br>
+        <p>Best regards,<br><strong>Nexus Flow Engineering Team</strong></p>
+        """
+    else:
+        subject = f"We Received Your Inquiry - Nexus Flow Automation"
+        body_html = f"""
+        <h3>Hi {lead_data['client_name']},</h3>
+        <p>Thank you for contacting <strong>Nexus Flow Automation</strong>.</p>
+        <p>We have received your details regarding <strong>{lead_data['property_type']}</strong> and added you to our nurture sequence. Our team will review your requirements and follow up via email shortly.</p>
+        <br>
+        <p>Best regards,<br><strong>Nexus Flow Team</strong></p>
+        """
+
+    try:
+        resend.Emails.send({
+            "from": "Nexus Flow <onboarding@resend.dev>",
+            "to": [lead_data["email"]],
+            "subject": subject,
+            "html": body_html
+        })
+        print(f"Email sent successfully to {lead_data['email']}")
+    except Exception as e:
+        print(f"Email Dispatch Error: {e}")
 
 
 def send_slack_notification(lead_data: dict, status: str, next_step: str):
@@ -139,6 +185,9 @@ def qualify_lead(lead: LeadInput):
 
     # Trigger Slack Rich Alert
     send_slack_notification(lead_data, status, action)
+
+    # Trigger Automated Email Dispatch
+    send_email_notification(lead_data, status)
 
     return {
         "success": True,
