@@ -1,5 +1,6 @@
 import os
-import requests
+import json
+import urllib.request
 from fastapi import FastAPI
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -20,7 +21,10 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 
 supabase: Client = None
 if SUPABASE_URL and SUPABASE_KEY and "your-supabase" not in SUPABASE_URL:
-    supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+    try:
+        supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+    except Exception as e:
+        print(f"Supabase init error: {e}")
 
 openai_client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY and "sk-your" not in OPENAI_API_KEY else None
 
@@ -28,9 +32,11 @@ class LeadInput(BaseModel):
     client_name: str
     email: str
     phone: str
+    company_name: str | None = None
     budget: float
     property_type: str
     location: str
+    message: str | None = None
 
 
 def send_slack_notification(lead_data: dict, status: str, next_step: str):
@@ -53,12 +59,12 @@ def send_slack_notification(lead_data: dict, status: str, next_step: str):
         {
             "type": "section",
             "fields": [
-                {"type": "mrkdwn", "text": f"*Client:* {lead_data['client_name']}"},
-                {"type": "mrkdwn", "text": f"*Email:* {lead_data['email']}"},
-                {"type": "mrkdwn", "text": f"*Phone:* {lead_data['phone']}"},
-                {"type": "mrkdwn", "text": f"*Budget:* ${lead_data['budget']:,.2f}"},
-                {"type": "mrkdwn", "text": f"*Property/Project:* {lead_data['property_type']}"},
-                {"type": "mrkdwn", "text": f"*Location:* {lead_data['location']}"},
+                {"type": "mrkdwn", "text": f"*Client:* {lead_data.get('client_name', 'N/A')}"},
+                {"type": "mrkdwn", "text": f"*Company:* {lead_data.get('company_name', 'N/A')}"},
+                {"type": "mrkdwn", "text": f"*Email:* {lead_data.get('email', 'N/A')}"},
+                {"type": "mrkdwn", "text": f"*Phone:* {lead_data.get('phone', 'N/A')}"},
+                {"type": "mrkdwn", "text": f"*Budget:* ${lead_data.get('budget', 0):,.2f}"},
+                {"type": "mrkdwn", "text": f"*Location:* {lead_data.get('location', 'N/A')}"},
             ]
         },
         {
@@ -72,7 +78,12 @@ def send_slack_notification(lead_data: dict, status: str, next_step: str):
     ]
 
     try:
-        requests.post(webhook_url, json={"blocks": blocks}, timeout=5)
+        req = urllib.request.Request(
+            webhook_url,
+            data=json.dumps({"blocks": blocks}).encode("utf-8"),
+            headers={"Content-Type": "application/json"}
+        )
+        urllib.request.urlopen(req, timeout=5)
     except Exception as e:
         print(f"Slack Notification Error: {e}")
 
@@ -95,7 +106,7 @@ def qualify_lead(lead: LeadInput):
     ai_response_message = "Thank you for your inquiry. Our agent will contact you shortly."
     if openai_client:
         try:
-            prompt = f"Write a short, professional real estate outreach SMS for {lead.client_name} who is looking for a {lead.property_type} in {lead.location} with a budget of ${lead.budget:,.2f}. Status: {status}."
+            prompt = f"Write a short, professional outreach SMS for {lead.client_name} who is looking for {lead.property_type} in {lead.location} with a budget of ${lead.budget:,.2f}. Status: {status}."
             response = openai_client.chat.completions.create(
                 model="gpt-4o-mini",
                 messages=[{"role": "user", "content": prompt}],
@@ -109,9 +120,11 @@ def qualify_lead(lead: LeadInput):
         "client_name": lead.client_name,
         "email": lead.email,
         "phone": lead.phone,
+        "company_name": lead.company_name or "N/A",
         "budget": lead.budget,
         "property_type": lead.property_type,
         "location": lead.location,
+        "message": lead.message or "",
         "status": status,
         "next_step": action,
         "ai_message": ai_response_message
