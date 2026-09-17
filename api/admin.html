@@ -10,7 +10,7 @@
       background-color: #0f172a;
       color: #f8fafc;
       margin: 0;
-      padding: 24px;
+      padding: 32px;
     }
     .header {
       display: flex;
@@ -22,14 +22,14 @@
     }
     h1 {
       font-size: 24px;
-      color: #0284c7;
+      color: #38bdf8;
       margin: 0;
     }
     .refresh-btn {
       background: #0284c7;
       color: #fff;
       border: none;
-      padding: 8px 16px;
+      padding: 10px 18px;
       border-radius: 6px;
       cursor: pointer;
       font-weight: bold;
@@ -41,21 +41,24 @@
       background: #1e293b;
       border-radius: 8px;
       overflow: hidden;
+      box-shadow: 0 4px 6px -1px rgba(0,0,0,0.3);
     }
     th, td {
-      padding: 12px 16px;
+      padding: 14px 18px;
       text-align: left;
       border-bottom: 1px solid #334155;
     }
     th {
-      background-color: #0f172a;
+      background-color: #1e293b;
       color: #94a3b8;
-      font-size: 14px;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
     }
     tr:hover { background-color: #334155; }
     .status-badge {
       display: inline-block;
-      padding: 4px 8px;
+      padding: 4px 10px;
       border-radius: 4px;
       font-size: 12px;
       font-weight: bold;
@@ -67,7 +70,7 @@
 <body>
 
   <div class="header">
-    <h1>Nexus Flow - Lead Management Dashboard</h1>
+    <h1>Nexus Flow — Lead Management Dashboard</h1>
     <button class="refresh-btn" onclick="fetchLeads()">Refresh Leads</button>
   </div>
 
@@ -79,13 +82,13 @@
         <th>Email</th>
         <th>Phone</th>
         <th>Budget</th>
-        <th>Type</th>
+        <th>Project Type</th>
         <th>Status</th>
       </tr>
     </thead>
     <tbody id="leads-table-body">
       <tr>
-        <td colspan="7" style="text-align:center;">Loading leads...</td>
+        <td colspan="7" style="text-align:center;">Loading leads from database...</td>
       </tr>
     </tbody>
   </table>
@@ -99,12 +102,12 @@
         
         if (data.success && data.leads) {
           if (data.leads.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;">No leads found.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;">No leads captured yet.</td></tr>';
             return;
           }
           
           tbody.innerHTML = data.leads.map(lead => {
-            const isQualified = lead.budget >= 5000;
+            const isQualified = Number(lead.budget || 0) >= 5000;
             const badgeClass = isQualified ? 'qualified' : 'nurture';
             return `
               <tr>
@@ -119,14 +122,13 @@
             `;
           }).join('');
         } else {
-          tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#ef4444;">Error loading leads.</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#ef4444;">Error fetching leads from API.</td></tr>';
         }
       } catch (err) {
-        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#ef4444;">Failed to connect to backend.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#ef4444;">Failed to connect to backend API.</td></tr>';
       }
     }
 
-    // Auto-fetch on page load
     fetchLeads();
   </script>
 </body>
