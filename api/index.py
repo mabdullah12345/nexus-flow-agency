@@ -1,4 +1,5 @@
 import os
+import requests
 from fastapi import FastAPI
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -31,6 +32,51 @@ class LeadInput(BaseModel):
     property_type: str
     location: str
 
+
+def send_slack_notification(lead_data: dict, status: str, next_step: str):
+    webhook_url = os.environ.get("SLACK_WEBHOOK_URL")
+    if not webhook_url:
+        return
+
+    is_hot = lead_data.get("budget", 0) >= 5000
+    header_text = "🔴 HOT LEAD ALERT ($5K+ Budget)" if is_hot else "⚡ New Lead Inbound"
+
+    blocks = [
+        {
+            "type": "header",
+            "text": {
+                "type": "plain_text",
+                "text": header_text,
+                "emoji": True
+            }
+        },
+        {
+            "type": "section",
+            "fields": [
+                {"type": "mrkdwn", "text": f"*Client:* {lead_data['client_name']}"},
+                {"type": "mrkdwn", "text": f"*Email:* {lead_data['email']}"},
+                {"type": "mrkdwn", "text": f"*Phone:* {lead_data['phone']}"},
+                {"type": "mrkdwn", "text": f"*Budget:* ${lead_data['budget']:,.2f}"},
+                {"type": "mrkdwn", "text": f"*Property/Project:* {lead_data['property_type']}"},
+                {"type": "mrkdwn", "text": f"*Location:* {lead_data['location']}"},
+            ]
+        },
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": f"*Status:* `{status}`\n*Next Step:* {next_step}\n*AI Response:* {lead_data.get('ai_message', 'N/A')}"
+            }
+        },
+        {"type": "divider"}
+    ]
+
+    try:
+        requests.post(webhook_url, json={"blocks": blocks}, timeout=5)
+    except Exception as e:
+        print(f"Slack Notification Error: {e}")
+
+
 @app.get("/")
 def root():
     return {
@@ -41,7 +87,7 @@ def root():
 
 @app.post("/api/v1/qualify-lead")
 def qualify_lead(lead: LeadInput):
-    is_qualified = lead.budget >= 100000.0
+    is_qualified = lead.budget >= 5000.0
     status = "HIGH PRIORITY - QUALIFIED" if is_qualified else "STANDARD NURTURE"
     action = "Instant Calendar Invite Sent" if is_qualified else "Added to Email Sequence"
     
@@ -71,11 +117,15 @@ def qualify_lead(lead: LeadInput):
         "ai_message": ai_response_message
     }
     
+    # Insert to Supabase Database
     if supabase:
         try:
             supabase.table("leads").insert(lead_data).execute()
         except Exception as e:
             print(f"DB Error: {e}")
+
+    # Trigger Slack Rich Alert
+    send_slack_notification(lead_data, status, action)
 
     return {
         "success": True,
